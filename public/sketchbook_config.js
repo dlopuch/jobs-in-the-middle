@@ -11,11 +11,6 @@ require.config({
   baseUrl: "/", // needed b/c experiment index.html's reference their local main.js as the main-data (and main-data is used as default baseUrl)
 
   paths: {
-    // paths can be used to shorten/alias certain modules:
-    "boilerplate": "/_sketch_boilerplate_",
-
-    // or assign the sketch's name to a stable version of an experiment.
-    // for example: "madExperiment": "/madExperiment/v2"
 
     //-------
     // jamjs sucks and is outdated.  Start adding manual js libraries.

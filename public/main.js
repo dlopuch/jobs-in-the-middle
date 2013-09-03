@@ -3,13 +3,13 @@ require(["/sketchbook_config.js"], function() {
 
   // sketch configuration
   require(
-    ["jquery", "boilerplate/ExampleView"],
-    function($, ExampleView) {
+    ["data/promiseData"],
+    function(promiseData) {
 
-      var v1 = new ExampleView({
-        el: $("#example-view-el")
+      promiseData
+      .done(function(data) {
+        console.log("Got data: ", data);
       });
-      v1.render();
     }
   );
 

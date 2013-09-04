@@ -7,7 +7,8 @@
  */
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
-  var Y_AXIS_LEFT_PADDING = 50;
+  var PADDING_LEFT = 50,
+      PADDING_BOTTOM = 50;
 
   return Backbone.View.extend({
 
@@ -28,14 +29,14 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
       this.xScale = d3.scale.ordinal()
       .domain([1,2,3,4,5]) // income quintiles
-      .rangeBands([Y_AXIS_LEFT_PADDING, this.$el.width() - 2], 0.1, 0.1);
+      .rangeBands([PADDING_LEFT, this.$el.width() - 2], 0.1, 0.1);
 
       this.yScale = d3.scale.linear()
       .domain([
-        d3.min(this.seriesList, function(s) { return s.sumDown }),
-        d3.max(this.seriesList, function(s) { return s.sumUp })
+        d3.min(this.seriesList, function(s) { return s.net }),
+        d3.max(this.seriesList, function(s) { return s.net })
       ])
-      .range([this.$el.height() - 2, 2]);
+      .range([this.$el.height() - PADDING_BOTTOM, 2]);
 
       this.jobsCreatedColorScale = d3.scale.linear()
       .domain([0, d3.max(options.data.stats, function(d) {return d.avgWageGrowth; })])
@@ -82,6 +83,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
     render: function() {
       this.wfEl.html("");
 
+      this.seriesG = this.wfEl.append("g").attr("class", "series");
+
       var
         xAxisG = this.wfEl.append("g")
           .attr("class", "axis x-axis")
@@ -89,16 +92,18 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           .call(d3.svg.axis()
             .scale(this.xScale)
             .orient('bottom')
+            .tickFormat(function(quintileN) {
+              return "Quintile " + quintileN;
+            })
           ),
         yAxisG = this.wfEl.append("g")
           .attr("class", "axis y-axis")
-          .attr("transform", "translate(" + Y_AXIS_LEFT_PADDING + ", 0)")
+          .attr("transform", "translate(" + PADDING_LEFT + ", 0)")
           .call(d3.svg.axis()
             .scale(this.yScale)
             .orient('left')
           );
 
-      this.seriesG = this.wfEl.append("g").attr("class", "series");
 
       this._renderSeries("1");
       this._renderSeries("2");
@@ -132,6 +137,24 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(d.avgWageGrowth);
           })
       });
+
+      // Now draw the waterfall connecting line
+      this.seriesG.append("g")
+        .attr("class", "waterfall-connector")
+      .append("line")
+        .attr("y1", this.yScale(this.series[seriesK].sumUp))
+        .attr("y2", this.yScale(this.series[seriesK].sumUp))
+        .attr("x1", upDownScale("up"))
+        .attr("x2", upDownScale("down") + w);
+
+      // And the waterfall final position
+      this.seriesG.append("g")
+        .attr("class", "waterfall-net")
+      .append("line")
+        .attr("y1", this.yScale(this.series[seriesK].net))
+        .attr("y2", this.yScale(this.series[seriesK].net))
+        .attr("x1", upDownScale("down"))
+        .attr("x2", upDownScale("down") + w);
     }
   });
 });

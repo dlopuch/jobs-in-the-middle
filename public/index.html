@@ -8,9 +8,23 @@
   <title>Jobs in the Middle Remix</title>
   <style>
 .axis path,
-.axis line {
+.axis line{
   fill: none;
   stroke: black;
+  shape-rendering: crispEdges;
+}
+
+.waterfall-connector line {
+  fill: none;
+  stroke: gray;
+  stroke-dasharray: 5, 10;
+  shape-rendering: crispEdges;
+}
+
+.waterfall-net line {
+  fill: none;
+  stroke: black;
+  stroke-width: 3px;
   shape-rendering: crispEdges;
 }
 

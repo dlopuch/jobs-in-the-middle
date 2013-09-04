@@ -116,6 +116,31 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this._renderSeries("3");
       this._renderSeries("4");
       this._renderSeries("5");
+
+      this.seriesG.selectAll("rect.stacked-box")
+      .transition()
+      .delay(function(d, i) {return i * 400})
+      .duration(500)
+        .attr("y", function(d) { return d.targetY; })
+        .attr("height", function(d) { return d.targetHeight; })
+        .each("start", function(d) {
+          // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
+          // is in place
+          d.getWaterfallNet()
+          .transition()
+          .delay(200)
+          .duration(400)
+          .attr("y1", d.targetYIndicator)
+          .attr("y2", d.targetYIndicator);
+        })
+        .each("end", function(d) {
+          if (d.isLastUp) {
+            d.getWaterfallConnector()
+            .transition()
+            .duration(250)
+              .attr("opacity", 1.0);
+          }
+        });
     },
 
     _renderSeries: function(seriesK) {
@@ -127,7 +152,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       var y = 0,
           self = this,
           getBoxStart = function(d) { var prevY = y; y += d.avgWageGrowth; return self.yScale(prevY); },
-          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(d.avgWageGrowth)); };
+          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(d.avgWageGrowth)); },
+          downTransition,
+          waterfallConnector,
+          waterfallNet;
       ["up", "down"].forEach(function(dir) {
         var g = self.seriesG.append("g");
         g.selectAll("rect")
@@ -135,11 +163,18 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         .enter().append("rect")
           .attr("class", "stacked-box")
           .attr("x", function(d) { return upDownScale(dir); })
-          .attr("y", function(d) {
-            return dir === "up" ? getBoxStart(d) - getBoxHeight(d) : getBoxStart(d);
-          })
+          .attr("y", function(d) { return self.yScale(dir === "up" ? 0 : self.series[seriesK].sumUp); })
           .attr("width", w)
-          .attr("height", getBoxHeight)
+          .attr("height", 0)
+          .each(function(d, i) {
+            // Save target attrs for transition
+            d.targetY = dir === "up" ? getBoxStart(d) - getBoxHeight(d) : getBoxStart(d);
+            d.targetHeight = getBoxHeight(d);
+            d.targetYIndicator = dir === "up" ? d.targetY : d.targetY + d.targetHeight;
+            d.getWaterfallConnector = function() {return waterfallConnector;}; // these vars aren't set, but they will be once lines drawn.  So save a reference to the var.
+            d.getWaterfallNet = function() {return waterfallNet;};
+            d.isLastUp = dir === "up" && i === self.series[seriesK][dir].length -1;
+          })
           .attr("fill", function(d) {
             return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(d.avgWageGrowth);
           })
@@ -150,20 +185,21 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       });
 
       // Now draw the waterfall connecting line
-      this.seriesG.append("g")
+      waterfallConnector = this.seriesG.append("g")
         .attr("class", "waterfall-connector")
       .append("line")
         .attr("y1", this.yScale(this.series[seriesK].sumUp))
         .attr("y2", this.yScale(this.series[seriesK].sumUp))
         .attr("x1", upDownScale("up"))
-        .attr("x2", upDownScale("down") + w);
+        .attr("x2", upDownScale("down") + w)
+        .attr("opacity", 0.0);
 
       // And the waterfall final position
-      this.seriesG.append("g")
+      waterfallNet = this.seriesG.append("g")
         .attr("class", "waterfall-net")
       .append("line")
-        .attr("y1", this.yScale(this.series[seriesK].net))
-        .attr("y2", this.yScale(this.series[seriesK].net))
+        .attr("y1", this.yScale(0)) // will animate with the bars, eventually ending at this.series[seriesK].net
+        .attr("y2", this.yScale(0))
         .attr("x1", upDownScale("down"))
         .attr("x2", upDownScale("down") + w);
     }

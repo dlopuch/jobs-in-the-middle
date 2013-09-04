@@ -41,10 +41,16 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.jobsCreatedColorScale = d3.scale.linear()
       .domain([0, d3.max(options.data.stats, function(d) {return d.avgWageGrowth; })])
       .range(["#FFFFBF","#91BFDB"]);
+      this.jobsCreatedBorderColorScale = d3.scale.linear()
+      .domain([0, d3.max(options.data.stats, function(d) {return d.avgWageGrowth; })])
+      .range(["#ffec8c","#6ba9ce"]);
 
       this.jobsLostColorScale = d3.scale.linear()
       .domain([d3.min(options.data.stats, function(d) {return d.avgWageGrowth; }), 0])
       .range(["#FC8D59", "#FFFFBF"]);
+      this.jobsLostBorderColorScale = d3.scale.linear()
+      .domain([d3.min(options.data.stats, function(d) {return d.avgWageGrowth; }), 0])
+      .range(["#fb6b27", "#ffec8c"]);
 
       this.render();
     },
@@ -127,6 +133,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         g.selectAll("rect")
           .data(self.series[seriesK][dir])
         .enter().append("rect")
+          .attr("class", "stacked-box")
           .attr("x", function(d) { return upDownScale(dir); })
           .attr("y", function(d) {
             return dir === "up" ? getBoxStart(d) - getBoxHeight(d) : getBoxStart(d);
@@ -136,6 +143,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           .attr("fill", function(d) {
             return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(d.avgWageGrowth);
           })
+          .attr("stroke", function(d) {
+            return (dir === "up" ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(d.avgWageGrowth);
+          })
+          .attr("shape-rendering", "crispEdges");
       });
 
       // Now draw the waterfall connecting line

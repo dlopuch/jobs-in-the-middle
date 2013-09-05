@@ -33,31 +33,48 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.render();
     },
 
+    changeMeasure: function(newMeasureAccessor) {
+      this.options.measureAccessor = newMeasureAccessor;
+      this._processData(this.options.data.stats);
+      this._initScales();
+      this.render({noDelay: true});
+    },
+
     _initScales: function() {
       var measureAccessor = this.options.measureAccessor; //convenience
 
-      this.xScale = d3.scale.ordinal()
+      // If the scales don't exist, create them.  Otherwise, we'll change them for future transitions
+      if (!this.xScale) {
+        this.xScale = d3.scale.ordinal();
+        this.yScale = d3.scale.linear();
+        this.jobsCreatedColorScale = d3.scale.linear();
+        this.jobsCreatedBorderColorScale = d3.scale.linear();
+        this.jobsLostColorScale = d3.scale.linear();
+        this.jobsLostBorderColorScale = d3.scale.linear();
+      }
+
+      this.xScale
       .domain([1,2,3,4,5]) // income quintiles
       .rangeBands([PADDING_LEFT, this.$el.width() - 2], 0.1, 0.1);
 
-      this.yScale = d3.scale.linear()
+      this.yScale
       .domain([
         d3.min(this.seriesList, function(s) { return s.net }),
         d3.max(this.seriesList, function(s) { return s.sumUp })
       ])
       .range([this.$el.height() - PADDING_BOTTOM, 2]);
 
-      this.jobsCreatedColorScale = d3.scale.linear()
+      this.jobsCreatedColorScale
       .domain([0, d3.max(this.options.data.stats, measureAccessor)])
       .range(["#FFFFBF","#91BFDB"]);
-      this.jobsCreatedBorderColorScale = d3.scale.linear()
+      this.jobsCreatedBorderColorScale
       .domain([0, d3.max(this.options.data.stats, measureAccessor)])
       .range(["#ffec8c","#6ba9ce"]);
 
-      this.jobsLostColorScale = d3.scale.linear()
+      this.jobsLostColorScale
       .domain([d3.min(this.options.data.stats, measureAccessor), 0])
       .range(["#FC8D59", "#FFFFBF"]);
-      this.jobsLostBorderColorScale = d3.scale.linear()
+      this.jobsLostBorderColorScale
       .domain([d3.min(this.options.data.stats, measureAccessor), 0])
       .range(["#fb6b27", "#ffec8c"]);
     },
@@ -73,12 +90,12 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
     _processData: function(data) {
       var measureAccessor = this.options.measureAccessor,
           s = this.series = {
-        1: {up: [], down: []},
-        2: {up: [], down: []},
-        3: {up: [], down: []},
-        4: {up: [], down: []},
-        5: {up: [], down: []}
-      };
+                1: {id: 1, up: [], down: []},
+                2: {id: 2, up: [], down: []},
+                3: {id: 3, up: [], down: []},
+                4: {id: 4, up: [], down: []},
+                5: {id: 5, up: [], down: []}
+          };
 
       data.forEach(function(r) {
         s[r.quintile][measureAccessor(r) >= 0 ? "up" : "down"].push(r);
@@ -94,13 +111,37 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.seriesList = [s['1'], s['2'], s['3'], s['4'], s['5']];
     },
 
-    render: function() {
-      this.wfEl.html("");
+    /**
+     * A reference to get whatever the current measure accessor is rather than a specific measure accessor.
+     */
+    _getMeasureAccessor: function() {
+      return this.options.measureAccessor;
+    },
 
-      this.seriesG = this.wfEl.append("g").attr("class", "series");
+    /**
+     * Renders elements against a dataset, or transitions a dataset to new positions and colorings.
+     * (You can change what attributes of a dataset are used for the representation, but changing the underlying dataset
+     *  is not supported).
+     */
+    render: function(options) {
+      options = options || {};
 
-      var
-        xAxisG = this.wfEl.append("g")
+      // First time: create axes and box elements
+      if (!this._subsequentRender) {
+        this._subsequentRender = true;
+
+        this.seriesGs = this.wfEl.append("g").attr("class", "series")
+        .selectAll("g").data(this.seriesList);
+
+        this.yAxis = d3.svg.axis()
+            .scale(this.yScale)
+            .orient('left');
+        this.yAxisG = this.wfEl.append("g")
+          .attr("class", "axis y-axis")
+          .attr("transform", "translate(" + PADDING_LEFT + ", 0)")
+          .call(this.yAxis);
+
+        this.xAxisG = this.wfEl.append("g")
           .attr("class", "axis x-axis")
           .attr("transform", "translate(0, " + this.yScale(0) +  ")")
           .call(d3.svg.axis()
@@ -109,46 +150,114 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             .tickFormat(function(quintileN) {
               return "Quintile " + quintileN;
             })
-          ),
-        yAxisG = this.wfEl.append("g")
-          .attr("class", "axis y-axis")
-          .attr("transform", "translate(" + PADDING_LEFT + ", 0)")
-          .call(d3.svg.axis()
-            .scale(this.yScale)
-            .orient('left')
           );
 
 
-      this._renderSeries("1");
-      this._renderSeries("2");
-      this._renderSeries("3");
-      this._renderSeries("4");
-      this._renderSeries("5");
+        this.seriesGs
+        .enter().append("g")
+        .attr("data-series-id", function(d) { return d.id; })
+        .call(this._enterSeries, this);
 
-      this.seriesG.selectAll("rect.stacked-box")
-      .transition()
-      .delay(function(d, i) {return i * 400})
-      .duration(500)
-        .attr("y", function(d) { return d.targetY; })
-        .attr("height", function(d) { return d.targetHeight; })
-        .each("start", function(d) {
-          // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
-          // is in place
-          d.getWaterfallNet()
-          .transition()
-          .delay(200)
-          .duration(400)
-          .attr("y1", d.targetYIndicator)
-          .attr("y2", d.targetYIndicator);
-        })
-        .each("end", function(d) {
-          if (d.isLastUp) {
-            d.getWaterfallConnector()
-            .transition()
-            .duration(250)
-              .attr("opacity", 1.0);
-          }
+      // Subsequent renders: everything is already created, now we just transition what needs to change
+      } else {
+        this.yAxisG.transition().duration(500).call(this.yAxis);
+        this.xAxisG.transition().duration(500).attr("transform", "translate(0, " + this.yScale(0) + ")");
+      }
+
+      var self = this,
+          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(self.options.measureAccessor(d))); };
+      this.seriesGs
+      .each(function(seriesD) {
+
+        var y=0;
+
+        d3.select(this).selectAll("rect.stacked-box")
+        .transition()
+        .delay(function(d, i) {return options.noDelay ? 0 : i * 400})
+        .duration(500)
+          .attr("y", function(d) {
+            var prevY = y;
+            y += self.options.measureAccessor(d);
+            return self.yScale(prevY) - (d._isUp ? getBoxHeight(d) : 0);
+          })
+          .attr("height", getBoxHeight);
+      });
+
+      // this._renderSeries("1");
+      // this._renderSeries("2");
+      // this._renderSeries("3");
+      // this._renderSeries("4");
+      // this._renderSeries("5");
+//
+      // this.seriesG.selectAll("rect.stacked-box")
+      // .transition()
+      // .delay(function(d, i) {return i * 400})
+      // .duration(500)
+        // .attr("y", function(d) { return d.targetY; })
+        // .attr("height", function(d) { return d.targetHeight; })
+        // .each("start", function(d) {
+          // // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
+          // // is in place
+          // d.getWaterfallNet()
+          // .transition()
+          // .delay(200)
+          // .duration(400)
+          // .attr("y1", d.targetYIndicator)
+          // .attr("y2", d.targetYIndicator);
+        // })
+        // .each("end", function(d) {
+          // if (d.isLastUp) {
+            // d.getWaterfallConnector()
+            // .transition()
+            // .duration(250)
+              // .attr("opacity", 1.0);
+          // }
+        // });
+    },
+
+    /**
+     * Instantiates each of the series boxes and elements
+     * @param {d3.selection} seriesGs Selection of each this.seriesList element's g bound to its seriesList data.
+     * @param {plot.Waterfall} this Backbone view instance (this function gets d3.selection.call()'d)
+     */
+    _enterSeries: function(seriesGs, self) {
+      seriesGs.each(function(seriesD) {
+
+        var seriesG = d3.select(this),
+            seriesID = seriesD.id;
+
+        // X sub-scale -- break each x ordinal up into an up and a down column
+        var upDownScale = d3.scale.ordinal()
+          .domain(["up", "down"])
+          .rangeBands([self.xScale(seriesID), self.xScale(seriesID) + self.xScale.rangeBand()], 0.1);
+
+        ["up", "down"].forEach(function(dir) {
+          var g = seriesG.append("g")
+          .attr("class", dir)
+          .attr("transform", "translate(" + upDownScale(dir) + "0)");
+
+          g.selectAll("rect")
+            .data(seriesD[dir])
+          .enter().append("rect")
+            .attr("class", "stacked-box")
+            .attr("x", 0)
+            .attr("y", function(d) { return self.yScale(dir === "up" ? 0 : seriesD.sumUp); })
+            .attr("width", upDownScale.rangeBand())
+            .attr("height", 0)
+            .each(function(d, i) {
+              d._isUp = dir === "up";
+              d._isLastUp =   dir === "up"   && i === seriesD[dir].length -1;
+              d._isLastDown = dir === "down" && i === seriesD[dir].length -1;
+            })
+            .attr("fill", function(d) {
+              return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(self._getMeasureAccessor()(d));
+            })
+            .attr("stroke", function(d) {
+              return (dir === "up" ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(self._getMeasureAccessor()(d));
+            })
+            .attr("shape-rendering", "crispEdges");
         });
+      });
     },
 
     _renderSeries: function(seriesK) {

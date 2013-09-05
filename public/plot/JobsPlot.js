@@ -14,7 +14,8 @@ define(["jquery", "backbone", "d3", "plot/Waterfall"], function($, Backbone, d3,
 
       this.waterfall = new WaterfallView({
         el: this.svg[0],
-        data: options.data
+        data: options.data,
+        measureAccessor: function(d) { return d.avgWageGrowth; }
       });
     }
   });

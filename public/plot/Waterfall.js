@@ -4,10 +4,11 @@
  * Constructor:
  *   el: an SVG element
  *   options.data: {Object} stats and quintile data
+ *   options.measureAccessor: {function(d)} Function that given a data element (box), returns a measure to waterfall
  */
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
-  var PADDING_LEFT = 50,
+  var PADDING_LEFT = 60,
       PADDING_BOTTOM = 50;
 
   return Backbone.View.extend({
@@ -25,7 +26,15 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       .append("g")
       .classed("waterfall", true);
 
-      this.processData(options.data.stats);
+      this._processData(options.data.stats);
+
+      this._initScales();
+
+      this.render();
+    },
+
+    _initScales: function() {
+      var measureAccessor = this.options.measureAccessor; //convenience
 
       this.xScale = d3.scale.ordinal()
       .domain([1,2,3,4,5]) // income quintiles
@@ -34,25 +43,23 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.yScale = d3.scale.linear()
       .domain([
         d3.min(this.seriesList, function(s) { return s.net }),
-        d3.max(this.seriesList, function(s) { return s.net })
+        d3.max(this.seriesList, function(s) { return s.sumUp })
       ])
       .range([this.$el.height() - PADDING_BOTTOM, 2]);
 
       this.jobsCreatedColorScale = d3.scale.linear()
-      .domain([0, d3.max(options.data.stats, function(d) {return d.avgWageGrowth; })])
+      .domain([0, d3.max(this.options.data.stats, measureAccessor)])
       .range(["#FFFFBF","#91BFDB"]);
       this.jobsCreatedBorderColorScale = d3.scale.linear()
-      .domain([0, d3.max(options.data.stats, function(d) {return d.avgWageGrowth; })])
+      .domain([0, d3.max(this.options.data.stats, measureAccessor)])
       .range(["#ffec8c","#6ba9ce"]);
 
       this.jobsLostColorScale = d3.scale.linear()
-      .domain([d3.min(options.data.stats, function(d) {return d.avgWageGrowth; }), 0])
+      .domain([d3.min(this.options.data.stats, measureAccessor), 0])
       .range(["#FC8D59", "#FFFFBF"]);
       this.jobsLostBorderColorScale = d3.scale.linear()
-      .domain([d3.min(options.data.stats, function(d) {return d.avgWageGrowth; }), 0])
+      .domain([d3.min(this.options.data.stats, measureAccessor), 0])
       .range(["#fb6b27", "#ffec8c"]);
-
-      this.render();
     },
 
     _hoverCategory: function(e) {
@@ -63,8 +70,9 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
      * Processes stats to build up stacked series for each quantile.  Sets series into this.series.
      * @param {Object} data promiseData.stats
      */
-    processData: function(data) {
-      var s = this.series = {
+    _processData: function(data) {
+      var measureAccessor = this.options.measureAccessor,
+          s = this.series = {
         1: {up: [], down: []},
         2: {up: [], down: []},
         3: {up: [], down: []},
@@ -73,10 +81,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       };
 
       data.forEach(function(r) {
-        s[r.quintile][r.avgWageGrowth >= 0 ? "up" : "down"].push(r);
+        s[r.quintile][measureAccessor(r) >= 0 ? "up" : "down"].push(r);
       });
 
-      var sum = function(sum, cur) { return sum + cur.avgWageGrowth;};
+      var sum = function(sum, cur) { return sum + measureAccessor(cur);};
       for (var k in s) {
         s[k].sumUp   = s[k].up.reduce(sum, 0);
         s[k].sumDown = s[k].down.reduce(sum, 0);
@@ -147,12 +155,13 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       var upDownScale = d3.scale.ordinal()
             .domain(["up", "down"])
             .rangeBands([this.xScale(seriesK), this.xScale(seriesK) + this.xScale.rangeBand()], 0.1),
-        w = upDownScale.rangeBand();
+        w = upDownScale.rangeBand(),
+        measureAccessor = this.options.measureAccessor;
 
       var y = 0,
           self = this,
-          getBoxStart = function(d) { var prevY = y; y += d.avgWageGrowth; return self.yScale(prevY); },
-          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(d.avgWageGrowth)); },
+          getBoxStart = function(d) { var prevY = y; y += measureAccessor(d); return self.yScale(prevY); },
+          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(measureAccessor(d))); },
           downTransition,
           waterfallConnector,
           waterfallNet;
@@ -176,10 +185,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             d.isLastUp = dir === "up" && i === self.series[seriesK][dir].length -1;
           })
           .attr("fill", function(d) {
-            return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(d.avgWageGrowth);
+            return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(measureAccessor(d));
           })
           .attr("stroke", function(d) {
-            return (dir === "up" ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(d.avgWageGrowth);
+            return (dir === "up" ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(measureAccessor(d));
           })
           .attr("shape-rendering", "crispEdges");
       });

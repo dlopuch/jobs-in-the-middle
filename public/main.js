@@ -8,6 +8,7 @@ require(
 
     promiseData
     .done(function(data) {
+      window.data = data;
       window.jobsPlot = new JobsPlotView({el: "#jobs-plot", data: data});
       window.waterfall = jobsPlot.waterfall; //convenience alias  TODO: REMOVE
     });

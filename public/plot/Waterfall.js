@@ -126,6 +126,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
     render: function(options) {
       options = options || {};
 
+      var self = this;
+
       // First time: create axes and box elements
       if (!this._subsequentRender) {
         this._subsequentRender = true;
@@ -162,57 +164,57 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       } else {
         this.yAxisG.transition().duration(500).call(this.yAxis);
         this.xAxisG.transition().duration(500).attr("transform", "translate(0, " + this.yScale(0) + ")");
+        this.seriesGs
+          .data(this.seriesList) // re-bind to the newest data series objects (summations, etc.)
+        .select("g.waterfall-connector line") // ...and transition the connector line
+        .transition().duration(500)
+        .attr("y1", function(seriesD) { return self.yScale(seriesD.sumUp)})
+        .attr("y2", function(seriesD) { return self.yScale(seriesD.sumUp)})
       }
 
-      var self = this,
-          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(self.options.measureAccessor(d))); };
+      var getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(self.options.measureAccessor(d))); },
+          allBoxes = this.seriesGs.selectAll("rect.stacked-box");
       this.seriesGs
-      .each(function(seriesD) {
+      .each(function(seriesD, seriesI) {
 
-        var y=0;
+        var y=0,
+            waterfallNet = d3.select(this).select("g.waterfall-net line"),
+            waterfallConnector = d3.select(this).select("g.waterfall-connector line"),
+            numPredecessorBoxes = 0;
+
+        for (var i=0; i < seriesI; i++) {
+          numPredecessorBoxes += allBoxes[i].length;
+        }
 
         d3.select(this).selectAll("rect.stacked-box")
         .transition()
-        .delay(function(d, i) {return options.noDelay ? 0 : i * 400})
-        .duration(500)
-          .attr("y", function(d) {
-            var prevY = y;
-            y += self.options.measureAccessor(d);
-            return self.yScale(prevY) - (d._isUp ? getBoxHeight(d) : 0);
-          })
-          .attr("height", getBoxHeight);
+          .delay(function(d, i) {return options.noDelay ? 0 : numPredecessorBoxes * 500 + i * 400})
+          .duration(500)
+        .attr("y", function(d) {
+          d._targetY = self.yScale(y) - (d._isUp ? getBoxHeight(d) : 0);
+          y += self.options.measureAccessor(d);
+          return d._targetY;
+        })
+        .attr("height", getBoxHeight)
+        .each("start", function(d) {
+          // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
+          // is in place
+          waterfallNet
+          .transition()
+          .delay(options.noDelay ? 0 : 200)
+          .duration(options.noDelay ? 500 : 400)
+          .attr("y1", d._targetY + (d._isUp ? 0 : getBoxHeight(d)))
+          .attr("y2", d._targetY + (d._isUp ? 0 : getBoxHeight(d)));
+        })
+        .each("end", function(d) {
+          if (d._isLastUp) {
+            waterfallConnector
+            .transition()
+              .duration(250)
+            .attr("opacity", 1.0);
+          }
+        });
       });
-
-      // this._renderSeries("1");
-      // this._renderSeries("2");
-      // this._renderSeries("3");
-      // this._renderSeries("4");
-      // this._renderSeries("5");
-//
-      // this.seriesG.selectAll("rect.stacked-box")
-      // .transition()
-      // .delay(function(d, i) {return i * 400})
-      // .duration(500)
-        // .attr("y", function(d) { return d.targetY; })
-        // .attr("height", function(d) { return d.targetHeight; })
-        // .each("start", function(d) {
-          // // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
-          // // is in place
-          // d.getWaterfallNet()
-          // .transition()
-          // .delay(200)
-          // .duration(400)
-          // .attr("y1", d.targetYIndicator)
-          // .attr("y2", d.targetYIndicator);
-        // })
-        // .each("end", function(d) {
-          // if (d.isLastUp) {
-            // d.getWaterfallConnector()
-            // .transition()
-            // .duration(250)
-              // .attr("opacity", 1.0);
-          // }
-        // });
     },
 
     /**
@@ -227,14 +229,14 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             seriesID = seriesD.id;
 
         // X sub-scale -- break each x ordinal up into an up and a down column
-        var upDownScale = d3.scale.ordinal()
+        seriesD.upDownScale = d3.scale.ordinal()
           .domain(["up", "down"])
           .rangeBands([self.xScale(seriesID), self.xScale(seriesID) + self.xScale.rangeBand()], 0.1);
 
         ["up", "down"].forEach(function(dir) {
           var g = seriesG.append("g")
           .attr("class", dir)
-          .attr("transform", "translate(" + upDownScale(dir) + "0)");
+          .attr("transform", "translate(" + seriesD.upDownScale(dir) + "0)");
 
           g.selectAll("rect")
             .data(seriesD[dir])
@@ -242,7 +244,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             .attr("class", "stacked-box")
             .attr("x", 0)
             .attr("y", function(d) { return self.yScale(dir === "up" ? 0 : seriesD.sumUp); })
-            .attr("width", upDownScale.rangeBand())
+            .attr("width", seriesD.upDownScale.rangeBand())
             .attr("height", 0)
             .each(function(d, i) {
               d._isUp = dir === "up";
@@ -258,68 +260,26 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             .attr("shape-rendering", "crispEdges");
         });
       });
-    },
-
-    _renderSeries: function(seriesK) {
-      var upDownScale = d3.scale.ordinal()
-            .domain(["up", "down"])
-            .rangeBands([this.xScale(seriesK), this.xScale(seriesK) + this.xScale.rangeBand()], 0.1),
-        w = upDownScale.rangeBand(),
-        measureAccessor = this.options.measureAccessor;
-
-      var y = 0,
-          self = this,
-          getBoxStart = function(d) { var prevY = y; y += measureAccessor(d); return self.yScale(prevY); },
-          getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(measureAccessor(d))); },
-          downTransition,
-          waterfallConnector,
-          waterfallNet;
-      ["up", "down"].forEach(function(dir) {
-        var g = self.seriesG.append("g");
-        g.selectAll("rect")
-          .data(self.series[seriesK][dir])
-        .enter().append("rect")
-          .attr("class", "stacked-box")
-          .attr("x", function(d) { return upDownScale(dir); })
-          .attr("y", function(d) { return self.yScale(dir === "up" ? 0 : self.series[seriesK].sumUp); })
-          .attr("width", w)
-          .attr("height", 0)
-          .each(function(d, i) {
-            // Save target attrs for transition
-            d.targetY = dir === "up" ? getBoxStart(d) - getBoxHeight(d) : getBoxStart(d);
-            d.targetHeight = getBoxHeight(d);
-            d.targetYIndicator = dir === "up" ? d.targetY : d.targetY + d.targetHeight;
-            d.getWaterfallConnector = function() {return waterfallConnector;}; // these vars aren't set, but they will be once lines drawn.  So save a reference to the var.
-            d.getWaterfallNet = function() {return waterfallNet;};
-            d.isLastUp = dir === "up" && i === self.series[seriesK][dir].length -1;
-          })
-          .attr("fill", function(d) {
-            return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(measureAccessor(d));
-          })
-          .attr("stroke", function(d) {
-            return (dir === "up" ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(measureAccessor(d));
-          })
-          .attr("shape-rendering", "crispEdges");
-      });
 
       // Now draw the waterfall connecting line
-      waterfallConnector = this.seriesG.append("g")
+      seriesGs.append("g")
         .attr("class", "waterfall-connector")
       .append("line")
-        .attr("y1", this.yScale(this.series[seriesK].sumUp))
-        .attr("y2", this.yScale(this.series[seriesK].sumUp))
-        .attr("x1", upDownScale("up"))
-        .attr("x2", upDownScale("down") + w)
+        .attr("y1", function(seriesD) { return self.yScale(seriesD.sumUp); }) //  this.yScale(this.series[seriesK].sumUp))
+        .attr("y2", function(seriesD) { return self.yScale(seriesD.sumUp); })
+        .attr("x1", function(seriesD) { return seriesD.upDownScale("up")})
+        .attr("x2", function(seriesD) { return seriesD.upDownScale("down") + seriesD.upDownScale.rangeBand()})
         .attr("opacity", 0.0);
 
+
       // And the waterfall final position
-      waterfallNet = this.seriesG.append("g")
+      seriesGs.append("g")
         .attr("class", "waterfall-net")
       .append("line")
-        .attr("y1", this.yScale(0)) // will animate with the bars, eventually ending at this.series[seriesK].net
-        .attr("y2", this.yScale(0))
-        .attr("x1", upDownScale("down"))
-        .attr("x2", upDownScale("down") + w);
+        .attr("y1", self.yScale(0)) // will animate with the bars, eventually ending at this.series[seriesK].net
+        .attr("y2", self.yScale(0))
+        .attr("x1", function(seriesD) { return seriesD.upDownScale("down")})
+        .attr("x2", function(seriesD) { return seriesD.upDownScale("down") + seriesD.upDownScale.rangeBand()});
     }
   });
 });

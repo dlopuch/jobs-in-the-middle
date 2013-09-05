@@ -15,10 +15,6 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
     events: {
       "mouseover rect": "_hoverCategory",
-     // "mouseout g[class=plot-area] circle": "_fadeConversation",
-//
-      // "mouseover g[class=plot-area-hitzone] circle": "_hoverConversation",
-      // "mouseout g[class=plot-area-hitzone] circle": "_fadeConversation",
     },
 
     initialize: function(options) {
@@ -196,6 +192,12 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           return d._targetY;
         })
         .attr("height", getBoxHeight)
+        .attr("fill", function(d) {
+          return (d._isUp ? self.jobsCreatedColorScale : self.jobsLostColorScale)(self.options.measureAccessor(d));
+        })
+        .attr("stroke", function(d) {
+          return (d._isUp ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(self.options.measureAccessor(d));
+        })
         .each("start", function(d) {
           // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
           // is in place

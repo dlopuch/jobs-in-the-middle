@@ -5,6 +5,9 @@
  *   el: an SVG element
  *   options.data: {Object} stats and quintile data
  *   options.measureAccessor: {function(d)} Function that given a data element (box), returns a measure to waterfall
+ *
+ * Events:
+ *   "newColorScale" (this, {d3.scale}): Emitted when a new measure has been assigned and we have a new color scale
  */
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
@@ -34,6 +37,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this._processData(this.options.data.stats);
       this._initScales();
       this.render({noDelay: true});
+      this.trigger("newColorScale", this, this.colorScale);
     },
 
     _initScales: function() {
@@ -43,10 +47,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       if (!this.xScale) {
         this.xScale = d3.scale.ordinal();
         this.yScale = d3.scale.linear();
-        this.jobsCreatedColorScale = d3.scale.linear();
-        this.jobsCreatedBorderColorScale = d3.scale.linear();
-        this.jobsLostColorScale = d3.scale.linear();
-        this.jobsLostBorderColorScale = d3.scale.linear();
+        this.colorScale = d3.scale.linear();
+        this.borderColorScale = d3.scale.linear();
       }
 
       this.xScale
@@ -60,19 +62,12 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       ])
       .range([this.$el.height() - PADDING_BOTTOM, 2]);
 
-      this.jobsCreatedColorScale
-      .domain([0, d3.max(this.options.data.stats, measureAccessor)])
-      .range(["#FFFFBF","#91BFDB"]);
-      this.jobsCreatedBorderColorScale
-      .domain([0, d3.max(this.options.data.stats, measureAccessor)])
-      .range(["#ffec8c","#6ba9ce"]);
-
-      this.jobsLostColorScale
-      .domain([d3.min(this.options.data.stats, measureAccessor), 0])
-      .range(["#FC8D59", "#FFFFBF"]);
-      this.jobsLostBorderColorScale
-      .domain([d3.min(this.options.data.stats, measureAccessor), 0])
-      .range(["#fb6b27", "#ffec8c"]);
+      this.colorScale
+      .domain([d3.min(this.options.data.stats, measureAccessor), 0, d3.max(this.options.data.stats, measureAccessor)])
+      .range(["#FC8D59", "#FFFFBF","#91BFDB"]);
+      this.borderColorScale
+      .domain([d3.min(this.options.data.stats, measureAccessor), 0, d3.max(this.options.data.stats, measureAccessor)])
+      .range(["#fb6b27", "#ffec8c","#6ba9ce"]);
     },
 
     _hoverCategory: function(e) {
@@ -193,10 +188,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         })
         .attr("height", getBoxHeight)
         .attr("fill", function(d) {
-          return (d._isUp ? self.jobsCreatedColorScale : self.jobsLostColorScale)(self.options.measureAccessor(d));
+          return self.colorScale(self.options.measureAccessor(d));
         })
         .attr("stroke", function(d) {
-          return (d._isUp ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(self.options.measureAccessor(d));
+          return self.borderColorScale(self.options.measureAccessor(d));
         })
         .each("start", function(d) {
           // When each box starts to move up, it will pull its waterfall-net line to the net position once the box
@@ -254,10 +249,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
               d._isLastDown = dir === "down" && i === seriesD[dir].length -1;
             })
             .attr("fill", function(d) {
-              return (dir === "up" ? self.jobsCreatedColorScale : self.jobsLostColorScale)(self._getMeasureAccessor()(d));
+              return self.colorScale(self._getMeasureAccessor()(d));
             })
             .attr("stroke", function(d) {
-              return (dir === "up" ? self.jobsCreatedBorderColorScale : self.jobsLostBorderColorScale)(self._getMeasureAccessor()(d));
+              return self.borderColorScale(self._getMeasureAccessor()(d));
             })
             .attr("shape-rendering", "crispEdges");
         });

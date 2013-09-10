@@ -1,4 +1,4 @@
-define(["jquery", "backbone", "d3", "plot/Waterfall"], function($, Backbone, d3, WaterfallView) {
+define(["jquery", "backbone", "d3", "plot/Waterfall", "plot/Scale"], function($, Backbone, d3, WaterfallView, ScaleView) {
   var FULL_HEIGHT = 400,
       FULL_WIDTH = 1200;
 
@@ -17,6 +17,18 @@ define(["jquery", "backbone", "d3", "plot/Waterfall"], function($, Backbone, d3,
         data: options.data,
         measureAccessor: this.options.measureAccessor
       });
+
+      this.scale = new ScaleView({
+        el: this.svg.append("g")
+            .attr("class", "scale")
+            .attr("transform", "translate(" + (FULL_WIDTH - 120) + ", 0)")
+            [0][0],
+        colorScale: this.waterfall.colorScale
+      });
+
+      this.listenTo(this.waterfall, "newColorScale", function(waterfallView, colorScale) {
+        this.scale.setScale(colorScale);
+      }.bind(this));
     }
   });
 });

@@ -19,9 +19,11 @@ require(
     });
 
     $("#btn-avgWageGrowth").click(function() {
+      jobsPlot.setMeasure("wealth");
       waterfall.changeMeasure(dataModel.getAvgWageGrowthAccessor());
     });
     $("#btn-jobGrowth").click(function() {
+      jobsPlot.setMeasure("jobs");
       waterfall.changeMeasure(dataModel.getJobGrowthAccessor());
     });
     $("#btn-replay").click(function() {

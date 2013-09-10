@@ -4,7 +4,7 @@
  * Constructor:
  *   el: an SVG element
  *   options.data: {Object} stats and quintile data
- *   options.measureAccessor: {function(d)} Function that given a data element (box), returns a measure to waterfall
+ *   options.measureAccessor: {function(d)} Function that given a data element (box), returns a measure (numeric value) to waterfall
  *
  * Events:
  *   "newColorScale" (this, {d3.scale}): Emitted when a new measure has been assigned and we have a new color scale
@@ -32,12 +32,52 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.render();
     },
 
+    /**
+     * Change the waterfall to illustrate a different measure in the bound dataset
+     * @param {function(d)} New function that given a data element (box), returns a measure (numeric value) to waterfall
+     */
     changeMeasure: function(newMeasureAccessor) {
       this.options.measureAccessor = newMeasureAccessor;
       this._processData(this.options.data.stats);
       this._initScales();
       this.render({noDelay: true});
       this.trigger("newColorScale", this, this.colorScale);
+    },
+
+    /**
+     * Replay the waterfall construction
+     */
+    resetCascade: function() {
+      this.seriesGs.selectAll("g.waterfall-connector line")
+      .transition().duration(0)
+      .attr("opacity", 0);
+
+      this.seriesGs.selectAll("g.waterfall-net line")
+      .transition().duration(0)
+      .attr("y1", this.yScale(0))
+      .attr("y2", this.yScale(0));
+
+      // Resetting the position of the boxes is tricky.  The up-stack all gets reset to 0, but the
+      // down stack gets reset to the series' sumUp value (because they waterfall down, not up)
+      var self = this;
+      this.seriesGs
+      .each(function(seriesD) {
+        var seriesG = d3.select(this);
+
+        ["up", "down"].forEach(function(dir) {
+          seriesG.selectAll("g.series-stack." + dir + " rect.stacked-box")
+          .transition().duration(0)
+          .attr("height", 0)
+          .attr("y", function(d) { return self.yScale(dir === "up" ? 0 : seriesD.sumUp); });
+        });
+      });
+
+      // this.seriesGs.selectAll("rect.stacked-box")
+      // .transition().duration(0) // clear any active transitions
+      // .attr("height", 0)
+      // .attr("y", this.yScale(0));
+
+      this.render();
     },
 
     _initScales: function() {
@@ -109,10 +149,13 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       return this.options.measureAccessor;
     },
 
+
     /**
      * Renders elements against a dataset, or transitions a dataset to new positions and colorings.
      * (You can change what attributes of a dataset are used for the representation, but changing the underlying dataset
      *  is not supported).
+     * @param {Object} [options] Render options
+     *   noDelay: {boolean} True to make everything move at once (eg changing measure)
      */
     render: function(options) {
       options = options || {};
@@ -149,6 +192,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         this.seriesGs
         .enter().append("g")
         .attr("data-series-id", function(d) { return d.id; })
+        .attr("class", "series-waterfall")
         .call(this._enterSeries, this);
 
       // Subsequent renders: everything is already created, now we just transition what needs to change
@@ -232,7 +276,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
         ["up", "down"].forEach(function(dir) {
           var g = seriesG.append("g")
-          .attr("class", dir)
+          .attr("class", "series-stack " + dir)
           .attr("transform", "translate(" + seriesD.upDownScale(dir) + "0)");
 
           g.selectAll("rect")

@@ -24,6 +24,9 @@ require(
     $("#btn-jobGrowth").click(function() {
       waterfall.changeMeasure(dataModel.getJobGrowthAccessor());
     });
+    $("#btn-replay").click(function() {
+      waterfall.resetCascade();
+    });
   }
 );
 

@@ -12,7 +12,7 @@
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
   var PADDING_LEFT = 60,
-      PADDING_BOTTOM = 50;
+      PADDING_BOTTOM = 30;
 
   return Backbone.View.extend({
 
@@ -21,8 +21,13 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
     },
 
     initialize: function(options) {
+      this.options.width = this.options.width || 600;
+      this.options.height = this.options.height || 300;
+
+
       this.wfEl = d3.select(this.el)
-      .append("g")
+      .attr("width", this.options.width)
+      .attr("height", this.options.height)
       .classed("waterfall", true);
 
       this._processData(options.data.stats);
@@ -72,11 +77,6 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         });
       });
 
-      // this.seriesGs.selectAll("rect.stacked-box")
-      // .transition().duration(0) // clear any active transitions
-      // .attr("height", 0)
-      // .attr("y", this.yScale(0));
-
       this.render();
     },
 
@@ -93,14 +93,14 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
       this.xScale
       .domain([1,2,3,4,5]) // income quintiles
-      .rangeBands([PADDING_LEFT, this.$el.width() - 2], 0.1, 0.1);
+      .rangeBands([PADDING_LEFT, this.options.width - 2], 0.1, 0.1);
 
       this.yScale
       .domain([
         d3.min(this.seriesList, function(s) { return s.net }),
         d3.max(this.seriesList, function(s) { return s.sumUp })
       ])
-      .range([this.$el.height() - PADDING_BOTTOM, 2]);
+      .range([this.options.height - PADDING_BOTTOM, 2]);
 
       this.colorScale
       .domain([d3.min(this.options.data.stats, measureAccessor), 0, d3.max(this.options.data.stats, measureAccessor)])

@@ -13,7 +13,10 @@ define(["jquery", "backbone", "d3", "plot/Waterfall", "plot/Scale"], function($,
       .attr("height", FULL_HEIGHT);
 
       this.waterfall = new WaterfallView({
-        el: this.svg[0],
+        el: this.svg
+            .append("g")[0],
+        width: FULL_WIDTH,
+        height: FULL_HEIGHT * 2/3,
         data: options.data,
         measureAccessor: this.options.measureAccessor
       });

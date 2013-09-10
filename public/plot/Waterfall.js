@@ -14,8 +14,12 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
   var PADDING_LEFT = 60,
       PADDING_BOTTOM = 30,
+
+      /** How long it takes for a box to tween into place */
       BOX_ANIMATE_MS = 800,
-      LINE_ANIMATE_MS = 600;
+
+      /** How frequently another box appears (the pause between moving one box and the next) */
+      BOX_THROUGHPUT_MS = 600;
 
   return Backbone.View.extend({
 
@@ -206,7 +210,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         this.seriesGs
           .data(this.seriesList) // re-bind to the newest data series objects (summations, etc.)
         .select("g.waterfall-connector line") // ...and transition the connector line
-        .transition().duration(500)
+        .transition().duration(BOX_ANIMATE_MS)
         .attr("y1", function(seriesD) { return self.yScale(seriesD.sumUp)})
         .attr("y2", function(seriesD) { return self.yScale(seriesD.sumUp)})
       }
@@ -227,7 +231,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
         d3.select(this).selectAll("rect.stacked-box")
         .transition()
-          .delay(function(d, i) {return options.noDelay ? 0 : numPredecessorBoxes*BOX_ANIMATE_MS + i*LINE_ANIMATE_MS})
+          .delay(function(d, i) {return options.noDelay ? 0 : (numPredecessorBoxes + i)*BOX_THROUGHPUT_MS})
           .duration(BOX_ANIMATE_MS)
         .attr("y", function(d) {
           d._targetY = self.yScale(y) - (d._isUp ? getBoxHeight(d) : 0);
@@ -246,8 +250,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           // is in place
           waterfallNet
           .transition()
-          .delay(options.noDelay ? 0 : 200)
-          .duration(options.noDelay ? BOX_ANIMATE_MS : LINE_ANIMATE_MS)
+          .delay(options.noDelay ? 0 : BOX_THROUGHPUT_MS / 2)
+          .duration(options.noDelay ? BOX_ANIMATE_MS : BOX_THROUGHPUT_MS)
           .attr("y1", d._targetY + (d._isUp ? 0 : getBoxHeight(d)))
           .attr("y2", d._targetY + (d._isUp ? 0 : getBoxHeight(d)));
 

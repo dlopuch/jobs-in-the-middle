@@ -8,11 +8,14 @@
  *
  * Events:
  *   "newColorScale" (this, {d3.scale}): Emitted when a new measure has been assigned and we have a new color scale
+ *   "boxSelected" (this, {object} data): Emitted when user hovers over a box to select the box data
  */
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
   var PADDING_LEFT = 60,
-      PADDING_BOTTOM = 30;
+      PADDING_BOTTOM = 30,
+      BOX_ANIMATE_MS = 800,
+      LINE_ANIMATE_MS = 600;
 
   return Backbone.View.extend({
 
@@ -112,6 +115,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
     _hoverCategory: function(e) {
       console.log(e.currentTarget.__data__);
+      this.trigger("boxSelected", this, e.currentTarget.__data__, e.currentTarget);
     },
 
     /**
@@ -223,8 +227,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
         d3.select(this).selectAll("rect.stacked-box")
         .transition()
-          .delay(function(d, i) {return options.noDelay ? 0 : numPredecessorBoxes * 500 + i * 400})
-          .duration(500)
+          .delay(function(d, i) {return options.noDelay ? 0 : numPredecessorBoxes*BOX_ANIMATE_MS + i*LINE_ANIMATE_MS})
+          .duration(BOX_ANIMATE_MS)
         .attr("y", function(d) {
           d._targetY = self.yScale(y) - (d._isUp ? getBoxHeight(d) : 0);
           y += self.options.measureAccessor(d);
@@ -243,9 +247,12 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           waterfallNet
           .transition()
           .delay(options.noDelay ? 0 : 200)
-          .duration(options.noDelay ? 500 : 400)
+          .duration(options.noDelay ? BOX_ANIMATE_MS : LINE_ANIMATE_MS)
           .attr("y1", d._targetY + (d._isUp ? 0 : getBoxHeight(d)))
           .attr("y2", d._targetY + (d._isUp ? 0 : getBoxHeight(d)));
+
+          if (!options.noDelay)
+            self.trigger("boxSelected", self, d, this);
         })
         .each("end", function(d) {
           if (d._isLastUp) {

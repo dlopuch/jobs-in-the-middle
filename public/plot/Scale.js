@@ -8,7 +8,7 @@
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
   var W = 100,
-      H = 20,
+      H = 40,
       NUM_INTERVALS = 10;
 
   return Backbone.View.extend({
@@ -16,19 +16,28 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
     tagName: "g",
 
     initialize: function(options) {
+      if (!this.model)
+        throw new Error("Model required");
 
-      if (!this.options.colorScale)
-        throw new Error("colorScale required");
+      this.listenTo(this.model, "change:activeMeasure", function(model, m) {
+        this.scaleLabel.text(m.name);
+      }.bind(this));
 
-      this.setScale(this.options.colorScale);
+      if (!this.options.colorScaleEmitter)
+        throw new Error("Backbone view that sets/emits colorScales required");
+
+      this._handleNewColorScale(this.options.colorScaleEmitter, this.options.colorScaleEmitter.colorScale);
+      this.listenTo(this.options.colorScaleEmitter, "newColorScale", this._handleNewColorScale);
+
       this.render();
     },
 
     /**
      * Changes the legend scale to match the passed d3.scale
+     * @param {Backbone.View} View that emitted the new color scale
      * @param {d3.scale} colorScale object
      */
-    setScale: function(colorScale) {
+    _handleNewColorScale: function(emitter, colorScale) {
       var domain = colorScale.domain();
 
       this._hasZero = domain[0] < 0 && domain[domain.length - 1] > 0;
@@ -98,16 +107,16 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       if (!this.scaleEl) {
         firstRender = true;
 
-        this.scaleEl = d3.select(this.el)
-        .append("g")
-        .attr("class", "axis")
-        .attr("width", W)
-        .attr("transform", "translate(0, " + (H * 2/3) + ")")
-        .call(this.axis);
+        this.scaleLabel = d3.select(this.el)
+        .append("text")
+        .attr("transform", "translate(" + W/2 + ",13)")
+        .attr("text-anchor", "middle")
+        .text(this.model.get("activeMeasure").name);
 
         this.colorG = d3.select(this.el)
         .append("g")
         .attr("width", W)
+        .attr("transform", "translate(0, 15)")
         .attr("class", "color-scale");
 
         this.colorG.selectAll("rect").data(data)
@@ -115,7 +124,14 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         .append("rect")
         .attr("x", function(d) { return boxScale(d); })
         .attr("width", W / NUM_INTERVALS)
-        .attr("height", H * 2/3);
+        .attr("height", H - 15 - H * 1/3);
+
+        this.scaleEl = d3.select(this.el)
+        .append("g")
+        .attr("class", "axis")
+        .attr("width", W)
+        .attr("transform", "translate(0, " + (H * 2/3) + ")")
+        .call(this.axis);
       }
 
       // Update what needs to be updated

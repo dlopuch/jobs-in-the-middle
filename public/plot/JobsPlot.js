@@ -1,4 +1,16 @@
-define(["jquery", "backbone", "d3", "plot/Waterfall", "plot/Scale"], function($, Backbone, d3, WaterfallView, ScaleView) {
+define([
+"jquery", "backbone", "d3",
+"data/DataModel",
+"plot/Waterfall",
+"plot/Scale"
+
+], function(
+
+$, Backbone, d3,
+DataModel,
+WaterfallView,
+ScaleView) {
+
   var FULL_HEIGHT = 400,
       FULL_WIDTH = 1200,
 
@@ -20,50 +32,61 @@ define(["jquery", "backbone", "d3", "plot/Waterfall", "plot/Scale"], function($,
     },
 
     initialize: function(options) {
+      if (!this.model)
+        throw new Error("Model required");
+
       this.svg = d3.select(this.el).append("svg")
       .attr("width", FULL_WIDTH)
       .attr("height", FULL_HEIGHT);
 
-      this.waterfall = new WaterfallView({
-        el: this.svg
-            .append("g")[0],
-        width: FULL_WIDTH,
-        height: FULL_HEIGHT * 5/6,
-        data: options.data,
-        measureAccessor: this.options.measureAccessor
+      this.model.deferred
+      .done(function() {
+
+        this.listenTo(this.model, "change:activeMeasure", this.setMeasure);
+
+        this.waterfall = new WaterfallView({
+          el: this.svg
+              .append("g")[0],
+          model: this.model,
+          width: FULL_WIDTH,
+          height: FULL_HEIGHT * 5/6,
+          data: this.model.get("data"),
+          measureAccessor: this.model.get("activeMeasure").accessor
+        });
+
+        this.scale = new ScaleView({
+          el: this.svg.append("g")
+              .attr("class", "scale")
+              .attr("transform", "translate(" + (FULL_WIDTH - 120) + ", 0)")
+              [0][0],
+          model: this.model,
+          colorScaleEmitter: this.waterfall
+        });
+
+        // Initialize label
+        this.labelG = this.svg.append("g").attr("class", "labels").attr("transform", "translate(0, " + (FULL_HEIGHT * 5/6 + 20) + ")");
+        this.labelG.append("rect").attr({x:0, y:0, width:1, height:1, opacity:0}); // Fix offset reference
+        this.labelText = this.labelG.append("text").attr("class", "label-category")
+
+        this.labelTextDetails1 = this.labelG.append("text").attr("y", 15).attr("class", "label-detail").attr("opacity", 0);
+        this.labelTextDetails1.append("tspan").attr("class", "highlight");
+        this.labelTextDetails1.append("tspan").attr("class", "rest");
+
+        this.labelTextDetails2 = this.labelG.append("text").attr("y", 30).attr("class", "label-detail active").attr("opacity", 0);
+        this.labelTextDetails2.append("tspan").attr("class", "rest");
+        this.labelTextDetails2.append("tspan").attr("class", "highlight");
+
+        this.listenTo(this.waterfall, "boxSelected", this.showLabel)
+
+      }.bind(this))
+      .fail(function() {
+        throw new Error("[JobsPlot] Error loading model data");
       });
-
-      this.scale = new ScaleView({
-        el: this.svg.append("g")
-            .attr("class", "scale")
-            .attr("transform", "translate(" + (FULL_WIDTH - 120) + ", 0)")
-            [0][0],
-        colorScale: this.waterfall.colorScale
-      });
-
-      this.listenTo(this.waterfall, "newColorScale", function(waterfallView, colorScale) {
-        this.scale.setScale(colorScale);
-      }.bind(this));
-
-      // Initialize label
-      this.labelG = this.svg.append("g").attr("class", "labels").attr("transform", "translate(0, " + (FULL_HEIGHT * 5/6 + 20) + ")");
-      this.labelG.append("rect").attr({x:0, y:0, width:1, height:1, opacity:0}); // Fix offset reference
-      this.labelText = this.labelG.append("text").attr("class", "label-category")
-
-      this.labelTextDetails1 = this.labelG.append("text").attr("y", 15).attr("class", "label-detail").attr("opacity", 0);
-      this.labelTextDetails1.append("tspan").attr("class", "highlight");
-      this.labelTextDetails1.append("tspan").attr("class", "rest");
-
-      this.labelTextDetails2 = this.labelG.append("text").attr("y", 30).attr("class", "label-detail active").attr("opacity", 0);
-      this.labelTextDetails2.append("tspan").attr("class", "rest");
-      this.labelTextDetails2.append("tspan").attr("class", "highlight");
-
-      this.listenTo(this.waterfall, "boxSelected", this.showLabel)
     },
 
-    setMeasure: function(m) {
-      (m === "jobs" ? this.labelTextDetails1 : this.labelTextDetails2).classed("active", true);
-      (m === "jobs" ? this.labelTextDetails2 : this.labelTextDetails1).classed("active", false);
+    setMeasure: function(model, m) {
+      (m === DataModel.MEASURES.jobGrowth ? this.labelTextDetails1 : this.labelTextDetails2).classed("active", true);
+      (m === DataModel.MEASURES.jobGrowth ? this.labelTextDetails2 : this.labelTextDetails1).classed("active", false);
     },
 
     showLabel: function(waterfallView, boxD, boxEl, isHover) {

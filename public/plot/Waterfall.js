@@ -28,6 +28,11 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
     },
 
     initialize: function(options) {
+      if (!this.model)
+        throw new Error("Model required");
+
+      this.listenTo(this.model, "change:activeMeasure", this.changeMeasure);
+
       this.options.width = this.options.width || 600;
       this.options.height = this.options.height || 300;
 
@@ -37,7 +42,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       .attr("height", this.options.height)
       .classed("waterfall", true);
 
-      this._processData(options.data.stats);
+      this._processData(options.data);
 
       this._initScales();
 
@@ -48,9 +53,9 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
      * Change the waterfall to illustrate a different measure in the bound dataset
      * @param {function(d)} New function that given a data element (box), returns a measure (numeric value) to waterfall
      */
-    changeMeasure: function(newMeasureAccessor) {
-      this.options.measureAccessor = newMeasureAccessor;
-      this._processData(this.options.data.stats);
+    changeMeasure: function(model, newMeasure) {
+      this.options.measureAccessor = newMeasure.accessor;
+      this._processData(this.options.data);
       this._initScales();
       this.render({noDelay: true});
       this.trigger("newColorScale", this, this.colorScale);
@@ -110,10 +115,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       .range([this.options.height - PADDING_BOTTOM, 2]);
 
       this.colorScale
-      .domain([d3.min(this.options.data.stats, measureAccessor), 0, d3.max(this.options.data.stats, measureAccessor)])
+      .domain([d3.min(this.options.data, measureAccessor), 0, d3.max(this.options.data, measureAccessor)])
       .range(["#FC8D59", "#FFFFBF","#91BFDB"]);
       this.borderColorScale
-      .domain([d3.min(this.options.data.stats, measureAccessor), 0, d3.max(this.options.data.stats, measureAccessor)])
+      .domain([d3.min(this.options.data, measureAccessor), 0, d3.max(this.options.data, measureAccessor)])
       .range(["#fb6b27", "#ffec8c","#6ba9ce"]);
     },
 

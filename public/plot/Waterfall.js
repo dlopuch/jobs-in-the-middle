@@ -201,12 +201,14 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             })
           );
 
-
         this.seriesGs
         .enter().append("g")
         .attr("data-series-id", function(d) { return d.id; })
         .attr("class", "series-waterfall")
         .call(this._enterSeries, this);
+
+        this.boxLabel = this.wfEl.append("text")
+        .attr("text-anchor", "left");
 
       // Subsequent renders: everything is already created, now we just transition what needs to change
       } else {
@@ -221,7 +223,11 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       }
 
       var getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(self.options.measureAccessor(d))); },
-          allBoxes = this.seriesGs.selectAll("rect.stacked-box");
+          allBoxes = this.seriesGs.selectAll("rect.stacked-box"),
+          boxLabel = this.boxLabel;
+
+      boxLabel.attr("opacity", options.noDelay ? 0 : 1);
+
       this.seriesGs
       .each(function(seriesD, seriesI) {
 
@@ -255,16 +261,39 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           // is in place
           waterfallNet
           .transition()
-          .delay(options.noDelay ? 0 : BOX_THROUGHPUT_MS / 2)
-          .duration(options.noDelay ? BOX_ANIMATE_MS : BOX_THROUGHPUT_MS)
+            .delay(options.noDelay ? 0 : BOX_THROUGHPUT_MS / 2)
+            .duration(options.noDelay ? BOX_ANIMATE_MS : BOX_THROUGHPUT_MS)
           .attr("y1", d._targetY + (d._isUp ? 0 : getBoxHeight(d)))
           .attr("y2", d._targetY + (d._isUp ? 0 : getBoxHeight(d)));
 
-          if (!options.noDelay)
-            self.trigger("boxSelected", self, d, this);
+          // If we're animating each box individually (!noDelay), move the boxLabel text above/below each stack
+          if (!options.noDelay) {
+
+            // If this is the first box, jump to the initial position
+            if (!numPredecessorBoxes && d._isFirst) { // === 1 b/c in this dataset 0 is empty... a wee bit awkward
+              boxLabel
+              .transition().duration(0)
+              .attr("y", d._isUp ? d._targetY - 5 : d._targetY + getBoxHeight(d) + 15)
+              .attr("x", d._offsetLeft);
+            }
+
+            var t = boxLabel
+            .text(d.category)
+            .transition()
+              .duration(BOX_THROUGHPUT_MS)
+            .attr("y", d._isUp ? d._targetY - 5 : d._targetY + getBoxHeight(d) + 15)
+            .attr("x", d._offsetLeft);
+
+            if ((seriesI === self.seriesGs[0].length - 1) && d._isLast) {
+              t.transition()
+              .delay(BOX_ANIMATE_MS * 2) // take a breath
+              .duration(BOX_THROUGHPUT_MS)
+              .attr("opacity", 0); // ...and disapear
+            }
+          }
         })
         .each("end", function(d) {
-          if (d._isLastUp) {
+          if (d._isUp && d._isLast) {
             waterfallConnector
             .transition()
               .duration(250)
@@ -305,8 +334,9 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             .attr("height", 0)
             .each(function(d, i) {
               d._isUp = dir === "up";
-              d._isLastUp =   dir === "up"   && i === seriesD[dir].length -1;
-              d._isLastDown = dir === "down" && i === seriesD[dir].length -1;
+              d._isFirst = i === 0;
+              d._isLast = i === seriesD[dir].length -1;
+              d._offsetLeft = seriesD.upDownScale(dir);
             })
             .attr("fill", function(d) {
               return self.colorScale(self._getMeasureAccessor()(d));

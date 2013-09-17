@@ -24,7 +24,9 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
   return Backbone.View.extend({
 
     events: {
-      "mouseover rect": "_hoverCategory",
+      "mouseover rect[class='stacked-box']": "_hoverCategory",
+      "mousemove rect[class='net-series-stack-hitzone']": "_hoverNetSeriesHitzone",
+      "mousemove rect[class='net-series-stack']": "_hoverNetSeriesHitzone"
     },
 
     initialize: function(options) {
@@ -127,6 +129,13 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.trigger("boxSelected", this, e.currentTarget.__data__, e.currentTarget, true);
     },
 
+    _hoverNetSeriesHitzone: function(e) {
+      var offset = $(e.currentTarget).offset();
+      var opacity = this._netSeriesStacksOpacityScale(e.pageX - offset.left);
+      this._netSeriesStacks.attr("opacity", opacity);
+      this.wfEl.select("g.series").attr("opacity", 1.0 - opacity);
+    },
+
     /**
      * Processes stats to build up stacked series for each quantile.  Sets series into this.series.
      * @param {Object} data promiseData.stats
@@ -179,6 +188,9 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       if (!this._subsequentRender) {
         this._subsequentRender = true;
 
+        this.netSeriesGs = this.wfEl.append("g").attr("class", "net-series")
+        .selectAll("g").data(this.seriesList);
+
         this.seriesGs = this.wfEl.append("g").attr("class", "series")
         .selectAll("g").data(this.seriesList);
 
@@ -207,6 +219,11 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         .attr("class", "series-waterfall")
         .call(this._enterSeries, this);
 
+        this.netSeriesGs
+        .enter().append("g")
+        .attr("class", "a-net-series")
+        .call(this._enterNetSeries, this);
+
         this.boxLabel = this.wfEl.append("text")
         .attr("text-anchor", "left");
 
@@ -220,6 +237,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         .transition().duration(BOX_ANIMATE_MS)
         .attr("y1", function(seriesD) { return self.yScale(seriesD.sumUp)})
         .attr("y2", function(seriesD) { return self.yScale(seriesD.sumUp)})
+
+        this.netSeriesGs.data(this.seriesList); // re-bind to the newest data series
       }
 
       var getBoxHeight = function(d) { return self.yScale(0) - self.yScale(Math.abs(self.options.measureAccessor(d))); },
@@ -229,6 +248,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       boxLabel.attr("opacity", options.noDelay ? 0 : 1);
 
       this.seriesGs
+      // Size-up and transition all of the stacked boxes
       .each(function(seriesD, seriesI) {
 
         var y=0,
@@ -301,6 +321,22 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           }
         });
       });
+
+
+      // Position and size all the net bars
+      //-----------------
+      this.netSeriesGs
+      .each(function(seriesD, seriesI) {
+        var seriesG = d3.select(this);
+
+        // rect.net-series-stack-hitzone never changes, no need to do anything
+
+        seriesG.select("rect.net-series-stack")
+          .attr("y", seriesD.net > 0 ? self.yScale(seriesD.net) : self.yScale(0))
+          .attr("height", seriesD.net > 0 ?
+                            self.yScale(0) - self.yScale(seriesD.net) :
+                            self.yScale(seriesD.net) - self.yScale(0));
+      });
     },
 
     /**
@@ -367,6 +403,42 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         .attr("y2", self.yScale(0))
         .attr("x1", function(seriesD) { return seriesD.upDownScale("down")})
         .attr("x2", function(seriesD) { return seriesD.upDownScale("down") + seriesD.upDownScale.rangeBand()});
+    },
+
+    _enterNetSeries: function(seriesGs, self) {
+
+      var upDownScale;
+      // Transform each series' data to be the net stack info
+      seriesGs.each(function(seriesD) {
+
+        var seriesG = d3.select(this),
+            yRange = self.yScale.range();
+
+        seriesG.append("rect")
+          .attr("class", "net-series-stack-hitzone")
+          .attr("opacity", 0)
+          .attr("fill", "steelblue")
+          .attr("y", yRange[1])
+          .attr("height", yRange[0] - yRange[1])
+          .attr("x", function(seriesD) { return seriesD.upDownScale("down")})
+          .attr("width", function(seriesD) { return seriesD.upDownScale.rangeBand()});
+
+        seriesG.append("rect")
+          .attr("class", "net-series-stack")
+          .attr("opacity", 0)
+          .attr("fill", "steelblue")
+          .attr("y", self.yScale(0))
+          .attr("height", 0)
+          .attr("x", function(seriesD) { return seriesD.upDownScale("down")})
+          .attr("width", function(seriesD) { return seriesD.upDownScale.rangeBand()});
+
+        upDownScale = seriesD.upDownScale;
+      });
+
+      self._netSeriesStacks = seriesGs.selectAll("rect.net-series-stack");
+      self._netSeriesStacksOpacityScale = d3.scale.linear()
+      .domain([0, upDownScale.rangeBand()/2, upDownScale.rangeBand()])
+      .range([0.0, 1.0, 0.0]);
     }
   });
 });

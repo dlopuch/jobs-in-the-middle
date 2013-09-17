@@ -25,6 +25,10 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
     events: {
       "mouseover rect[class='stacked-box']": "_hoverCategory",
+
+      // Net Series events: fade in the net series bars
+      "mouseout rect[class='net-series-stack-hitzone']": "_hoverOutNetSeriesHitzone",
+      "mouseout rect[class='net-series-stack']": "_hoverOutNetSeriesHitzone",
       "mousemove rect[class='net-series-stack-hitzone']": "_hoverNetSeriesHitzone",
       "mousemove rect[class='net-series-stack']": "_hoverNetSeriesHitzone"
     },
@@ -129,11 +133,32 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       this.trigger("boxSelected", this, e.currentTarget.__data__, e.currentTarget, true);
     },
 
+
+    /**
+     * Handle the mouse moving over the net stacks area -- fade in the netstacks depending on mouse position
+     */
     _hoverNetSeriesHitzone: function(e) {
-      var offset = $(e.currentTarget).offset();
-      var opacity = this._netSeriesStacksOpacityScale(e.pageX - offset.left);
-      this._netSeriesStacks.attr("opacity", opacity);
-      this.wfEl.select("g.series").attr("opacity", 1.0 - opacity);
+      if (!this._doneAnimating)
+        return;
+
+      this._fadeNetSeriesStacks(this._netSeriesStacksOpacityScale(e.pageX - $(e.currentTarget).offset().left), 0);
+        // need 0-length transition to cancel any fade-out transitions from _hoverOutNetSeriesHitzone
+    },
+    /**
+     * De-hovering the net series stacks.  Fade them out.
+     */
+    _hoverOutNetSeriesHitzone: function(e) {
+      if (!this._doneAnimating)
+        return;
+
+      this._fadeNetSeriesStacks(0.0, 250);
+    },
+    _fadeNetSeriesStacks: function(opacity, fadeIt) {
+      this._netSeriesStacks.transition().duration(fadeIt)
+      .attr("opacity", opacity);
+
+      this.wfEl.select("g.series").transition().duration(fadeIt)
+      .attr("opacity", 1.0 - opacity);
     },
 
     /**
@@ -260,6 +285,9 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
           numPredecessorBoxes += allBoxes[i].length;
         }
 
+        // Set the enable-net-stacks flag to ready if we're not animating box-by-box, otherwise wait till box-by-box done
+        self._doneAnimating = options.noDelay ? true : false;
+
         d3.select(this).selectAll("rect.stacked-box")
         .transition()
           .delay(function(d, i) {return options.noDelay ? 0 : (numPredecessorBoxes + i)*BOX_THROUGHPUT_MS})
@@ -312,12 +340,16 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
             }
           }
         })
-        .each("end", function(d) {
+        .each("end", function(d, a, b) {
           if (d._isUp && d._isLast) {
             waterfallConnector
             .transition()
               .duration(250)
             .attr("opacity", 1.0);
+          }
+
+          if (!options.noDelay && seriesI === self.seriesGs[0].length - 1 && d._isLast) {
+            self._doneAnimating = true;
           }
         });
       });
@@ -332,6 +364,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
         // rect.net-series-stack-hitzone never changes, no need to do anything
 
         seriesG.select("rect.net-series-stack")
+        .transition().duration(BOX_ANIMATE_MS)
           .attr("y", seriesD.net > 0 ? self.yScale(seriesD.net) : self.yScale(0))
           .attr("height", seriesD.net > 0 ?
                             self.yScale(0) - self.yScale(seriesD.net) :
@@ -437,8 +470,8 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
       self._netSeriesStacks = seriesGs.selectAll("rect.net-series-stack");
       self._netSeriesStacksOpacityScale = d3.scale.linear()
-      .domain([0, upDownScale.rangeBand()/2, upDownScale.rangeBand()])
-      .range([0.0, 1.0, 0.0]);
+      .domain([0, upDownScale.rangeBand()/3, upDownScale.rangeBand()*2/3, upDownScale.rangeBand()])
+      .range([0.0, 1.0, 1.0, 0.0]); // create a 1/3 width dead-zone where it's full opacity
     }
   });
 });

@@ -237,6 +237,25 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
               return "Quintile " + quintileN;
             })
           );
+        this.xAxisG.selectAll("g.tick text").attr('class', 'label');
+
+        // Add sub-labels over the default D3 axes
+        var quintileFormatter = d3.format("$.2s");
+        this.xAxisG.selectAll("g.tick")
+        .data(this.model.quintiles)
+        .append("text")
+          .attr('class', "sub-label")
+          .attr('y', 24)
+          .attr('x', 0)
+          .attr('dy', '0.71em').style("text-anchor", "middle")
+          .text(function(d, i) {
+            if (i === 0)
+              return "< " + quintileFormatter(self.model.quintiles[i + 1].income);
+            else if (i < 4)
+              return quintileFormatter(d.income) + " - " + quintileFormatter(self.model.quintiles[i + 1].income);
+            else
+              return quintileFormatter(d.income) + "+";
+          });
 
         this.seriesGs
         .enter().append("g")

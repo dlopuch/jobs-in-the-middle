@@ -130,7 +130,7 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
     _hoverCategory: function(e) {
       console.log(e.currentTarget.__data__);
-      this.trigger("boxSelected", this, e.currentTarget.__data__, e.currentTarget, true);
+      this.trigger("boxSelected", this, e.currentTarget.__data__, e.currentTarget);
     },
 
 

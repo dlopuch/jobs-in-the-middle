@@ -40,6 +40,10 @@ g.labels text.label-category,
 g.labels text.active tspan.highlight {
   font-weight: bold;
 }
+
+.label-dir {
+  text-shadow: black 1px 1px 2px;
+}
   </style>
 </head>
 
@@ -55,8 +59,10 @@ g.labels text.active tspan.highlight {
     <button id="btn-replay" class="btn">Replay!</button> &nbsp; &nbsp;
     <span id="show-btns">
       Or show:
-      <button id="btn-jobGrowth" class="btn btn-primary">Jobs</button>
-      <button id="btn-avgWageGrowth" class="btn">Wealth ($M)</button>
+      <span class="btn-group">
+        <button id="btn-jobGrowth" class="btn btn-primary">Jobs</button>
+        <button id="btn-avgWageGrowth" class="btn">Wealth ($M)</button>
+      </span>
       Created/Lost by Avg. Income Quintile
     </span>
   </div>

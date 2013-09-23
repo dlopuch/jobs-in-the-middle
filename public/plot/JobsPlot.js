@@ -43,6 +43,7 @@ ScaleView) {
       .done(function() {
 
         this.listenTo(this.model, "change:activeMeasure", this.setMeasure);
+        this._activeMeasure = DataModel.MEASURES.jobGrowth.accessor;
 
         this.waterfall = new WaterfallView({
           el: this.svg
@@ -63,16 +64,26 @@ ScaleView) {
           colorScaleEmitter: this.waterfall
         });
 
-        // Initialize label
-        this.labelG = this.svg.append("g").attr("class", "labels").attr("transform", "translate(0, " + (FULL_HEIGHT * 5/6 + 20) + ")");
-        this.labelG.append("rect").attr({x:0, y:0, width:1, height:1, opacity:0}); // Fix offset reference
-        this.labelText = this.labelG.append("text").attr("class", "label-category")
 
-        this.labelTextDetails1 = this.labelG.append("text").attr("y", 15).attr("class", "label-detail").attr("opacity", 0);
+        // Initialize labels
+        // -------
+
+        this._labelGy = (FULL_HEIGHT * 5/6 + 20);
+        this.labelG = this.svg.append("g")
+        .attr("class", "labels")
+        .attr("transform", "translate(0, " + this._labelGy + ")")
+        .attr("opacity", 0);
+        this._labelGReference = this.svg.append("rect").attr({x:0, y:0, width:1, height:1, opacity:0}); // Fixed reference point for offset calcs
+
+        this.labelText = this.labelG.append("text").attr("class", "label-category")
+        this.labelTextUp   = this.labelG.append("text").style("text-anchor", "end").attr("x", -5).attr("class", "label-dir up").text("▲");
+        this.labelTextDown = this.labelG.append("text").style("text-anchor", "end").attr("x", -5).attr("class", "label-dir down").text("▼");
+
+        this.labelTextDetails1 = this.labelG.append("text").attr("y", 15).attr("class", "label-detail");
         this.labelTextDetails1.append("tspan").attr("class", "highlight");
         this.labelTextDetails1.append("tspan").attr("class", "rest");
 
-        this.labelTextDetails2 = this.labelG.append("text").attr("y", 30).attr("class", "label-detail active").attr("opacity", 0);
+        this.labelTextDetails2 = this.labelG.append("text").attr("y", 30).attr("class", "label-detail active");
         this.labelTextDetails2.append("tspan").attr("class", "rest");
         this.labelTextDetails2.append("tspan").attr("class", "highlight");
 
@@ -87,9 +98,10 @@ ScaleView) {
     setMeasure: function(model, m) {
       (m === DataModel.MEASURES.jobGrowth ? this.labelTextDetails1 : this.labelTextDetails2).classed("active", true);
       (m === DataModel.MEASURES.jobGrowth ? this.labelTextDetails2 : this.labelTextDetails1).classed("active", false);
+      this._activeMeasure = m.accessor;
     },
 
-    showLabel: function(waterfallView, boxD, boxEl, isHover) {
+    showLabel: function(waterfallView, boxD, boxEl) {
       this.labelText
       .text(boxD.category);
 
@@ -103,19 +115,19 @@ ScaleView) {
       this.labelTextDetails2.select("tspan.highlight")
         .text(AVG_WAGE_GROWTH(Math.abs(boxD.avgWageGrowth)));
 
-      this.labelG.select("text.label-category")
+      this.labelTextUp.attr("opacity", boxD.avgWageGrowth >= 0 ? 1 : 0)
+      .attr("fill", this.waterfall.colorScale(this._activeMeasure(boxD)));
+      this.labelTextDown.attr("opacity", boxD.avgWageGrowth >= 0 ? 0 : 1)
+      .attr("fill", this.waterfall.colorScale(this._activeMeasure(boxD)));
+
+      this.labelG
       .transition().duration(200)
       .attr("opacity", 1)
-      .attr("x", $(boxEl).offset().left - $(this.labelG[0]).offset().left);
-
-      this.labelG.selectAll("text.label-detail")
-      .transition().duration(200)
-      .attr("opacity", isHover ? 1 : 0)
-      .attr("x", $(boxEl).offset().left - $(this.labelG[0]).offset().left);
+      .attr("transform", "translate(" + ($(boxEl).offset().left - $(this._labelGReference[0]).offset().left) + ", " + this._labelGy + ")");
 
     },
     hideLabel: function() {
-      this.labelG.selectAll("text")
+      this.labelG
       .transition().duration(250)
       .attr("opacity", 0);
     }

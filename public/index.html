@@ -5,6 +5,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <meta name="viewport" content="width=device-width,initial-scale=1">
 
+  <link href="lib-user/bootstrap_232/css/bootstrap.min.css" rel="stylesheet" media="screen">
+
   <title>Jobs in the Middle Remix</title>
   <style>
 .axis path,
@@ -33,7 +35,7 @@ svg text {
   font-size: 11px;
 }
 
-.axis.x-axis text.label,
+.axis.x-axis text.tick-label,
 g.labels text.label-category,
 g.labels text.active tspan.highlight {
   font-weight: bold;
@@ -50,11 +52,13 @@ g.labels text.active tspan.highlight {
     <!-- Example DOM elements to be used by the example Backbone View instance -->
   </div>
   <div style="text-align: center;">
-    <button id="btn-replay">Replay!</button> &nbsp; &nbsp;
-    Or show:
-    <button id="btn-jobGrowth">Jobs</button>
-    <button id="btn-avgWageGrowth">Wealth ($M)</button>
-    Created/Lost by Avg. Income Quintile
+    <button id="btn-replay" class="btn">Replay!</button> &nbsp; &nbsp;
+    <span id="show-btns">
+      Or show:
+      <button id="btn-jobGrowth" class="btn btn-primary">Jobs</button>
+      <button id="btn-avgWageGrowth" class="btn">Wealth ($M)</button>
+      Created/Lost by Avg. Income Quintile
+    </span>
   </div>
 
 </body>

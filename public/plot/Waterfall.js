@@ -237,14 +237,14 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
               return "Quintile " + quintileN;
             })
           );
-        this.xAxisG.selectAll("g.tick text").attr('class', 'label');
+        this.xAxisG.selectAll("g.tick text").attr('class', 'tick-label');
 
         // Add sub-labels over the default D3 axes
         var quintileFormatter = d3.format("$.2s");
         this.xAxisG.selectAll("g.tick")
         .data(this.model.quintiles)
         .append("text")
-          .attr('class', "sub-label")
+          .attr('class', "tick-sub-label")
           .attr('y', 24)
           .attr('x', 0)
           .attr('dy', '0.71em').style("text-anchor", "middle")

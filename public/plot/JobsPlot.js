@@ -104,7 +104,8 @@ ScaleView) {
         this.labelTextDetails2.append("tspan").attr("class", "rest");
         this.labelTextDetails2.append("tspan").attr("class", "highlight");
 
-        this.listenTo(this.waterfall, "boxSelected", this.showLabel)
+        this.listenTo(this.waterfall, "boxSelected", this.showJobDrilldown);
+        this.listenTo(this.waterfall, "netBoxSelected", this.showNetDrilldown);
 
       }.bind(this))
       .fail(function() {
@@ -115,10 +116,10 @@ ScaleView) {
     setMeasure: function(model, m) {
       (m === DataModel.MEASURES.jobGrowth ? this.labelTextDetails1 : this.labelTextDetails2).classed("active", true);
       (m === DataModel.MEASURES.jobGrowth ? this.labelTextDetails2 : this.labelTextDetails1).classed("active", false);
-      this._activeMeasure = m.accessor;
+      this._activeMeasure = m;
     },
 
-    showLabel: function(waterfallView, boxD, boxEl) {
+    showJobDrilldown: function(waterfallView, boxD, boxEl) {
       this.labelText
       .text(boxD.category);
 
@@ -132,17 +133,41 @@ ScaleView) {
       this.labelTextDetails2.select("tspan.highlight")
         .text(AVG_WAGE_GROWTH(Math.abs(boxD.avgWageGrowth)));
 
-      this.labelTextUp.attr("opacity", boxD.avgWageGrowth >= 0 ? 1 : 0)
-      .attr("fill", this.waterfall.colorScale(this._activeMeasure(boxD)));
-      this.labelTextDown.attr("opacity", boxD.avgWageGrowth >= 0 ? 0 : 1)
-      .attr("fill", this.waterfall.colorScale(this._activeMeasure(boxD)));
+      this.labelTextUp.attr("opacity", this._activeMeasure.accessor(boxD) >= 0 ? 1 : 0)
+      .attr("fill", this.waterfall.colorScale(this._activeMeasure.accessor(boxD)));
+      this.labelTextDown.attr("opacity", this._activeMeasure.accessor(boxD) >= 0 ? 0 : 1)
+      .attr("fill", this.waterfall.colorScale(this._activeMeasure.accessor(boxD)));
 
       this.labelG
       .transition().duration(200)
       .attr("opacity", 1)
       .attr("transform", "translate(" + ($(boxEl).offset().left - $(this._labelGReference[0]).offset().left) + ", " + this._labelGy + ")");
-
     },
+
+    showNetDrilldown: function(waterfallView, boxD, boxEl, opts) {
+      this.labelText.text("Net " + this._activeMeasure.name + ", Quintile " + boxD.quintile);
+
+      this.labelTextDetails1.select("tspan.highlight")
+        .text(JOB_GROWTH_FORMAT(Math.abs(boxD.jobGrowth)));
+      this.labelTextDetails1.select("tspan.rest")
+        .text(" jobs " + (boxD.jobGrowth >= 0 ? "created" : "lost" ));
+
+      this.labelTextDetails2.select("tspan.rest")
+        .text("Avg. wealth " + (boxD.avgWageGrowth >= 0 ? "created" : "lost") + ": ");
+      this.labelTextDetails2.select("tspan.highlight")
+        .text(AVG_WAGE_GROWTH(Math.abs(boxD.avgWageGrowth)));
+
+      this.labelTextUp.attr("opacity", this._activeMeasure.accessor(boxD) >= 0 ? 1 : 0)
+      .attr("fill", "steelblue");
+      this.labelTextDown.attr("opacity", this._activeMeasure.accessor(boxD) >= 0 ? 0 : 1)
+      .attr("fill", "steelblue");
+
+      this.labelG
+      .transition().duration(0) // cancel any active transitions
+      .attr("opacity", opts.opacity || 1)
+      .attr("transform", "translate(" + ($(boxEl).offset().left - $(this._labelGReference[0]).offset().left) + ", " + this._labelGy + ")");
+    },
+
     hideLabel: function() {
       this.labelG
       .transition().duration(250)

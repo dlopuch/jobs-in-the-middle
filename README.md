@@ -10,7 +10,7 @@ Project file structure based on dlopuch/js-sketchbook-boilerplate.  Check it out
 * `$ python -m SimpleHTTPServer`
 
 =====================
-This project and all source code is released under the GPL v3 copyleft license:
+This project and all source code is released under the GPL v3:
 
     jobs-in-the-middle: Visualization remix exercise of http://www.ibtimes.com/what-us-economy-missing-jobs-middle-pay-spectrum-charts-1397987
     Copyright (C) 2013  Dan Lopuch <dlopuch@gmail.com>

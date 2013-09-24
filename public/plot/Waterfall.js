@@ -25,7 +25,11 @@
  *
  * Events:
  *   "newColorScale" (this, {d3.scale}): Emitted when a new measure has been assigned and we have a new color scale
- *   "boxSelected" (this, {object} data): Emitted when user hovers over a box to select the box data
+ *   "boxSelected" (this, {object} data, {el} boxEl): Emitted when user hovers over a box to select the box data
+ *   "netBoxSelected" (this, {object} data, {el} boxEl): Emitted when user hovers over a net-stack box
+ *      data {object}:
+ *        jobGrowth: {number} Net job growth (negative for decline)
+ *        avgWageGrowth: {number} Net average wealth growth
  */
 define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
 
@@ -158,7 +162,26 @@ define(["jquery", "backbone", "d3"], function($, Backbone, d3) {
       if (!this._doneAnimating)
         return;
 
-      this._fadeNetSeriesStacks(this._netSeriesStacksOpacityScale(e.pageX - $(e.currentTarget).offset().left), 0);
+      var opacity = this._netSeriesStacksOpacityScale(e.pageX - $(e.currentTarget).offset().left),
+
+          // eh, some dirty hacking into our event abstraction...
+          d = e.target.__data__;
+
+      // memoize calculations -- this event fires again and again, lets save some cpu electrons
+      if (this._lastNetSeriesD !== d) {
+        var jobGrowthAccessor = function(boxD) { return boxD.jobGrowth},
+            avgWageGrowthAccessor = function(boxD) { return boxD.avgWageGrowth};
+        this._lastNetSeriesD = d;
+        this._lastNetSeriesEventD = {
+          quintile: d.id,
+          jobGrowth: d3.sum(d.up, jobGrowthAccessor) + d3.sum(d.down, jobGrowthAccessor), // the down's are negative, hence we add the two sums
+          avgWageGrowth: d3.sum(d.up, avgWageGrowthAccessor) + d3.sum(d.down, avgWageGrowthAccessor)
+        };
+      }
+
+      this.trigger("netBoxSelected", this, this._lastNetSeriesEventD, e.target, {opacity: opacity});
+
+      this._fadeNetSeriesStacks(opacity, 0);
         // need 0-length transition to cancel any fade-out transitions from _hoverOutNetSeriesHitzone
     },
     /**
